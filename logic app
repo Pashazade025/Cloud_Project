@@ -1,0 +1,111 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "contentVersion": "1.0.0.0",
+        "triggers": {
+            "When_a_message_is_received_in_a_queue_(peek-lock)": {
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['servicebus']['connectionId']"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/@{encodeURIComponent(encodeURIComponent('user-queue'))}/messages/head/peek",
+                    "queries": {
+                        "queueType": "Main",
+                        "sessionId": "None"
+                    }
+                },
+                "recurrence": {
+                    "interval": 30,
+                    "frequency": "Minute"
+                }
+            }
+        },
+        "actions": {
+            "Create_blob_(V2)": {
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['azureblob']['connectionId']"
+                        }
+                    },
+                    "method": "post",
+                    "body": "@triggerBody()",
+                    "headers": {
+                        "ReadFileMetadataFromServer": true
+                    },
+                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files",
+                    "queries": {
+                        "folderPath": "/logs",
+                        "name": "log-@@{utcNow()}.txt",
+                        "queryParametersSingleEncoded": true
+                    }
+                },
+                "runAfter": {},
+                "runtimeConfiguration": {
+                    "contentTransfer": {
+                        "transferMode": "Chunked"
+                    }
+                }
+            },
+            "Insert_row_(V2)": {
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['sql']['connectionId']"
+                        }
+                    },
+                    "method": "post",
+                    "body": {
+                        "UserId": "@{triggerBody()}",
+                        "Action": "@base64ToString(triggerBody()?['ContentData'])",
+                        "Timestamp": "@utcNow()"
+                    },
+                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('default'))},@{encodeURIComponent(encodeURIComponent('default'))}/tables/@{encodeURIComponent(encodeURIComponent('[dbo].[UserActivityLogs]'))}/items"
+                },
+                "runAfter": {
+                    "Create_blob_(V2)": [
+                        "Succeeded"
+                    ]
+                }
+            }
+        },
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "type": "Object",
+                "defaultValue": {}
+            }
+        }
+    },
+    "parameters": {
+        "$connections": {
+            "type": "Object",
+            "value": {
+                "servicebus": {
+                    "id": "/subscriptions/e6da85fd-0fa9-4db7-8293-9444b2ed5646/providers/Microsoft.Web/locations/italynorth/managedApis/servicebus",
+                    "connectionId": "/subscriptions/e6da85fd-0fa9-4db7-8293-9444b2ed5646/resourceGroups/Cloud_Project_RG/providers/Microsoft.Web/connections/servicebus",
+                    "connectionName": "servicebus",
+                    "connectionProperties": {}
+                },
+                "azureblob": {
+                    "id": "/subscriptions/e6da85fd-0fa9-4db7-8293-9444b2ed5646/providers/Microsoft.Web/locations/italynorth/managedApis/azureblob",
+                    "connectionId": "/subscriptions/e6da85fd-0fa9-4db7-8293-9444b2ed5646/resourceGroups/Cloud_Project_RG/providers/Microsoft.Web/connections/azureblob",
+                    "connectionName": "azureblob",
+                    "connectionProperties": {}
+                },
+                "sql": {
+                    "id": "/subscriptions/e6da85fd-0fa9-4db7-8293-9444b2ed5646/providers/Microsoft.Web/locations/italynorth/managedApis/sql",
+                    "connectionId": "/subscriptions/e6da85fd-0fa9-4db7-8293-9444b2ed5646/resourceGroups/Cloud_Project_RG/providers/Microsoft.Web/connections/sql",
+                    "connectionName": "sql",
+                    "connectionProperties": {}
+                }
+            }
+        }
+    }
+}
